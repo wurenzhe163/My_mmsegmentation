@@ -488,7 +488,6 @@ class Normalize(object):
                     f'{self.to_rgb})'
         return repr_str
 
-
 @PIPELINES.register_module()
 class Rerange(object):
     """Rerange the image pixel value.
@@ -882,17 +881,22 @@ class PhotoMetricDistortion(object):
                  brightness_delta=32,
                  contrast_range=(0.5, 1.5),
                  saturation_range=(0.5, 1.5),
-                 hue_delta=18):
+                 hue_delta=18
+                 ,Hue=True,Saturation=True
+                 ,channel=[0,1,2]):
         self.brightness_delta = brightness_delta
         self.contrast_lower, self.contrast_upper = contrast_range
         self.saturation_lower, self.saturation_upper = saturation_range
         self.hue_delta = hue_delta
+        self.Hue = Hue
+        self.Saturation = Saturation
+        self.channel = channel
 
     def convert(self, img, alpha=1, beta=0):
         """Multiple with alpha and add beat with clip."""
         img = img.astype(np.float32) * alpha + beta
-        img = np.clip(img, 0, 255)
-        return img.astype(np.uint8)
+        # img = np.clip(img, 0, 255)
+        return img#.astype(np.uint8)
 
     def brightness(self, img):
         """Brightness distortion."""
@@ -942,7 +946,7 @@ class PhotoMetricDistortion(object):
             dict: Result dict with images distorted.
         """
 
-        img = results['img']
+        img = results['img'][:,:,self.channel]
         # random brightness
         img = self.brightness(img)
 
@@ -953,16 +957,18 @@ class PhotoMetricDistortion(object):
             img = self.contrast(img)
 
         # random saturation
-        img = self.saturation(img)
+        if self.Saturation:
+            img = self.saturation(img)
 
         # random hue
-        img = self.hue(img)
+        if self.Hue:
+            img = self.hue(img)
 
         # random contrast
         if mode == 0:
             img = self.contrast(img)
 
-        results['img'] = img
+        results['img'][:,:,self.channel] = img
         return results
 
     def __repr__(self):
@@ -1332,4 +1338,38 @@ class RandomMosaic(object):
         repr_str += f'center_ratio_range={self.center_ratio_range}, '
         repr_str += f'pad_val={self.pad_val}, '
         repr_str += f'seg_pad_val={self.pad_val})'
+        return repr_str
+
+
+'''
+添加方法
+'''
+@PIPELINES.register_module()
+class Div(object):
+    """Normalize the image.
+
+    Added key is "img_norm_cfg".
+
+    Args:
+        mean (sequence): Mean values of 3 channels.
+        std (sequence): Std values of 3 channels.
+        to_rgb (bool): Whether to convert the image from BGR to RGB,
+            default is true.
+    """
+
+    def __init__(self, div):
+        self.div = np.array(div, dtype=np.float32)
+    def __call__(self, results):
+        """Call function to normalize images.
+
+        Args:
+            results (dict): Result dict from loading pipeline.
+        """
+        results['img'] = results['img']/self.div
+        results['div'] = dict(
+            div=self.div)
+        return results
+    def __repr__(self):
+        repr_str = self.__class__.__name__
+        repr_str += f'(div={self.div})'
         return repr_str

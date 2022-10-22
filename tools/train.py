@@ -19,7 +19,8 @@ from mmseg.datasets import build_dataset
 from mmseg.models import build_segmentor
 from mmseg.utils import (collect_env, get_device, get_root_logger,
                          setup_multi_processes)
-
+# import os
+# os.chdir(r'D:\BaiduSyncdisk\09_Code\python-script\gitclone\mmsegmentation')
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a segmentor')
@@ -195,6 +196,7 @@ def main():
     meta['seed'] = seed
     meta['exp_name'] = osp.basename(args.config)
 
+    # cfg.model 里包含很多type，每一个字符串type都会通过一定的操作(注册器registry)转换成类
     model = build_segmentor(
         cfg.model,
         train_cfg=cfg.get('train_cfg'),

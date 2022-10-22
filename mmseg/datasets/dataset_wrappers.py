@@ -162,6 +162,8 @@ class ConcatDataset(_ConcatDataset):
         return sum(ret_res, [])
 
 
+# 新建一个Dataset_wrapper能够在通道方向叠加Dataset
+
 @DATASETS.register_module()
 class RepeatDataset(object):
     """A wrapper of repeated dataset.

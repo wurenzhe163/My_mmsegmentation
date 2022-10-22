@@ -13,15 +13,17 @@ class ChaseDB1Dataset(CustomDataset):
     The ``img_suffix`` is fixed to '.png' and ``seg_map_suffix`` is fixed to
     '_1stHO.png'.
     """
-
+    # 0，1
     CLASSES = ('background', 'vessel')
 
     PALETTE = [[120, 120, 120], [6, 230, 230]]
 
     def __init__(self, **kwargs):
         super(ChaseDB1Dataset, self).__init__(
-            img_suffix='.png',
-            seg_map_suffix='_1stHO.png',
+            # img_suffix='.png',
+            # seg_map_suffix='_1stHO.png',
+            img_suffix='.tif',
+            seg_map_suffix='.tif',
             reduce_zero_label=False,
             **kwargs)
         assert self.file_client.exists(self.img_dir)

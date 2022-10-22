@@ -78,7 +78,7 @@ class CustomDataset(Dataset):
     PALETTE = None
 
     def __init__(self,
-                 pipeline,
+                 pipeline,    # pipeline，就是图片需要经过哪几个流程，比如需要loading，crop之类
                  img_dir,
                  img_suffix='.jpg',
                  ann_dir=None,
@@ -118,7 +118,10 @@ class CustomDataset(Dataset):
 
         # join paths if data_root is specified
         if self.data_root is not None:
+
             if not osp.isabs(self.img_dir):
+                self.Listimg_dir = [osp.join(self.data_root, each_imgDir) for each_imgDir in
+                                    [self.img_dir, *self.ChannelCat_dir]]
                 self.img_dir = osp.join(self.data_root, self.img_dir)
             if not (self.ann_dir is None or osp.isabs(self.ann_dir)):
                 self.ann_dir = osp.join(self.data_root, self.ann_dir)
@@ -134,6 +137,7 @@ class CustomDataset(Dataset):
         """Total number of samples of data."""
         return len(self.img_infos)
 
+    # 需要继承
     def load_annotations(self, img_dir, img_suffix, ann_dir, seg_map_suffix,
                          split):
         """Load annotation from directory.
@@ -178,6 +182,7 @@ class CustomDataset(Dataset):
         print_log(f'Loaded {len(img_infos)} images', logger=get_root_logger())
         return img_infos
 
+    # 需要继承
     def get_ann_info(self, idx):
         """Get annotation by index.
 
@@ -190,6 +195,7 @@ class CustomDataset(Dataset):
 
         return self.img_infos[idx]['ann']
 
+    # 给results增加数据路径
     def pre_pipeline(self, results):
         """Prepare results dict for pipeline."""
         results['seg_fields'] = []
@@ -231,6 +237,7 @@ class CustomDataset(Dataset):
         self.pre_pipeline(results)
         return self.pipeline(results)
 
+    # 与train_img相比少了标注
     def prepare_test_img(self, idx):
         """Get testing data after pipeline.
 
