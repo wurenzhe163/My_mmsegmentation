@@ -19,8 +19,8 @@ from mmseg.datasets import build_dataset
 from mmseg.models import build_segmentor
 from mmseg.utils import (collect_env, get_device, get_root_logger,
                          setup_multi_processes)
-# import os
-# os.chdir(r'D:\BaiduSyncdisk\09_Code\python-script\gitclone\mmsegmentation')
+import os
+os.chdir(r'D:\Wrz\mmsegmentation')
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a segmentor')
