@@ -118,10 +118,13 @@ class CustomDataset(Dataset):
 
         # join paths if data_root is specified
         if self.data_root is not None:
-
             if not osp.isabs(self.img_dir):
-                self.Listimg_dir = [osp.join(self.data_root, each_imgDir) for each_imgDir in
-                                    [self.img_dir, *self.ChannelCat_dir]]
+                # 这里使用try吧，没法放到custom外面
+                try:
+                    self.Listimg_dir = [osp.join(self.data_root, each_imgDir) for each_imgDir in
+                                        [self.img_dir, *self.ChannelCat_dir]]
+                except:
+                    pass
                 self.img_dir = osp.join(self.data_root, self.img_dir)
             if not (self.ann_dir is None or osp.isabs(self.ann_dir)):
                 self.ann_dir = osp.join(self.data_root, self.ann_dir)

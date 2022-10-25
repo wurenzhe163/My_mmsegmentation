@@ -19,7 +19,8 @@ from mmseg.datasets import build_dataloader, build_dataset
 from mmseg.models import build_segmentor
 from mmseg.utils import build_ddp, build_dp, get_device, setup_multi_processes
 
-
+import os
+os.chdir(r'D:\Wrz\mmsegmentation')
 def parse_args():
     parser = argparse.ArgumentParser(
         description='mmseg test (and eval) a model')
@@ -47,6 +48,13 @@ def parse_args():
     parser.add_argument('--show', action='store_true', help='show results')
     parser.add_argument(
         '--show-dir', help='directory where painted images will be saved')
+
+    # -----------------------------自定义参数 ----------------------------#
+    parser.add_argument(
+        '--premode',default='train' ,help='选择数据集进行预测分为test,train')
+    parser.add_argument(
+        '--RGBChannel',nargs='+',default=[0,1,2] ,help='RGB的通道位置')
+    # ------------------------------------------------------------------#
     parser.add_argument(
         '--gpu-collect',
         action='store_true',
@@ -116,6 +124,7 @@ def parse_args():
 
 
 def main():
+    # -----------------------  读取并判定输入的超参数-------------------------------- #
     args = parse_args()
     assert args.out or args.eval or args.format_only or args.show \
         or args.show_dir, \
@@ -126,9 +135,12 @@ def main():
     if args.eval and args.format_only:
         raise ValueError('--eval and --format_only cannot be both specified')
 
+    # 使用args.out输出结果为pickle
     if args.out is not None and not args.out.endswith(('.pkl', '.pickle')):
         raise ValueError('The output file must be a pkl file.')
 
+    # -----------------------  读取定义的config文件，并进行初始化设置 -------------------------------- #
+    # -----------------------  构建多GPU训练，以及workdir路径 -------------------------------- #
     cfg = mmcv.Config.fromfile(args.config)
     if args.cfg_options is not None:
         cfg.merge_from_dict(args.cfg_options)
@@ -147,7 +159,6 @@ def main():
         cfg.data.test.pipeline[1].flip = True
     cfg.model.pretrained = None
     cfg.data.test.test_mode = True
-
     if args.gpu_id is not None:
         cfg.gpu_ids = [args.gpu_id]
 
@@ -187,9 +198,29 @@ def main():
             json_file = osp.join(work_dir,
                                  f'eval_single_scale_{timestamp}.json')
 
-    # build the dataloader
+    # -----------------------  build the dataloader -------------------------------- #
     # TODO: support multiple images per gpu (only minor changes are needed)
-    dataset = build_dataset(cfg.data.test)
+    if args.premode == 'test':
+        dataset = build_dataset(cfg.data.test)
+    elif args.premode == 'train':
+        if type(cfg.data.train) == list:
+            cfg.data.test['data_root'] = cfg.data.train[0]['data_root']
+            cfg.data.test['img_dir'] = cfg.data.train[0]['img_dir']
+            cfg.data.test['ann_dir'] = cfg.data.train[0]['ann_dir']
+            try:
+                cfg.data.test['ChannelCat_dir'] = cfg.data.train[0]['ChannelCat_dir']
+            except KeyError:
+                pass
+        else:
+            cfg.data.test['data_root'] = cfg.data.train['data_root']
+            cfg.data.test['img_dir'] = cfg.data.train['img_dir']
+            cfg.data.test['ann_dir'] = cfg.data.train['ann_dir']
+            try:
+                cfg.data.test['ChannelCat_dir'] = cfg.data.train['ChannelCat_dir']
+            except KeyError:
+                pass
+        dataset = build_dataset(cfg.data.test)
+
     # The default loader config
     loader_cfg = dict(
         # cfg.gpus will be ignored if distributed
@@ -210,10 +241,11 @@ def main():
         'shuffle': False,  # Not shuffle by default
         **cfg.data.get('test_dataloader', {})
     }
+
     # build the dataloader
     data_loader = build_dataloader(dataset, **test_loader_cfg)
 
-    # build the model and load checkpoint
+    # -----------------------  build the model and load checkpoint -------------------------------- #
     cfg.model.train_cfg = None
     model = build_segmentor(cfg.model, test_cfg=cfg.get('test_cfg'))
     fp16_cfg = cfg.get('fp16', None)
@@ -236,6 +268,7 @@ def main():
     eval_kwargs = {} if args.eval_options is None else args.eval_options
 
     # Deprecated
+    # -----------------------  判断metics，构建文件夹 -------------------------------- #
     efficient_test = eval_kwargs.get('efficient_test', False)
     if efficient_test:
         warnings.warn(
@@ -259,6 +292,7 @@ def main():
     else:
         tmpdir = None
 
+    # -----------------------  build the dataloader -------------------------------- #
     cfg.device = get_device()
     if not distributed:
         warnings.warn(
@@ -269,6 +303,7 @@ def main():
             assert digit_version(mmcv.__version__) >= digit_version('1.4.4'), \
                 'Please use MMCV >= 1.4.4 for CPU training!'
         model = revert_sync_batchnorm(model)
+        # build DataParallel module by device type
         model = build_dp(model, cfg.device, device_ids=cfg.gpu_ids)
         results = single_gpu_test(
             model,
@@ -279,7 +314,12 @@ def main():
             args.opacity,
             pre_eval=args.eval is not None and not eval_on_format_results,
             format_only=args.format_only or eval_on_format_results,
-            format_args=eval_kwargs)
+            format_args=eval_kwargs,
+            RGBChannel = args.RGBChannel,
+            imgbackend='tifffile',
+            dirname = args.premode,
+            annpath=os.path.join(cfg.data.test['data_root'], cfg.data.test['ann_dir'])
+        )
     else:
         model = build_ddp(
             model,

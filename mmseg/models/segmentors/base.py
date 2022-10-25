@@ -217,12 +217,15 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
     def show_result(self,
                     img,
                     result,
+                    ann_path,
                     palette=None,
                     win_name='',
                     show=False,
                     wait_time=0,
                     out_file=None,
-                    opacity=0.5):
+                    opacity=0.5,
+                    backend='None',
+                    MinMax_Norm=False,dirname='test'):
         """Draw `result` over `img`.
 
         Args:
@@ -245,7 +248,10 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
         Returns:
             img (Tensor): Only if not `show` or `out_file`
         """
-        img = mmcv.imread(img)
+        # 这里read可能需要添加backend,修改backend之后要修改conver2BGR
+        img = mmcv.imread(img,backend=backend)
+        ann = mmcv.imread(ann_path,backend=backend).astype(np.uint8)
+
         img = img.copy()
         seg = result[0]
         if palette is None:
@@ -269,23 +275,41 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
         assert len(palette.shape) == 2
         assert 0 < opacity <= 1.0
         color_seg = np.zeros((seg.shape[0], seg.shape[1], 3), dtype=np.uint8)
+        ann_seg = np.zeros((ann.shape[0], ann.shape[1], 3), dtype=np.uint8)
         for label, color in enumerate(palette):
+            ann_seg[ann == label, :] = color
             color_seg[seg == label, :] = color
+
         # convert to BGR
         color_seg = color_seg[..., ::-1]
 
-        img = img * (1 - opacity) + color_seg * opacity
-        img = img.astype(np.uint8)
+        if MinMax_Norm:
+            imgmax = img.max(axis=(0,1))
+            imgmin = img.min(axis=(0,1))
+            img = (img - imgmin)/(imgmax-imgmin) *255
+        # -------------------叠加ann------------------#
+        CatSeg = ann_seg*0.6 + color_seg*0.4
+        img0 = img * (1 - opacity) + CatSeg * opacity
+        img0 = img0.astype(np.uint8)
+        # ------------------仅叠加预测----------------#
+        img1 = img * (1 - opacity) + color_seg * opacity
+        img1 = img1.astype(np.uint8)
+
         # if out_file specified, do not show image in window
         if out_file is not None:
             show = False
 
         if show:
-            mmcv.imshow(img, win_name, wait_time)
+            mmcv.imshow(img1, win_name, wait_time)
         if out_file is not None:
-            mmcv.imwrite(img, out_file)
+            import os
+            ParentDir = os.path.dirname(out_file)
+            BaseName = os.path.basename(out_file)
+            mmcv.imwrite(img0, os.path.join(ParentDir,dirname,'image0',BaseName))
+            mmcv.imwrite(img1, os.path.join(ParentDir, dirname, 'image1', BaseName))
+            mmcv.imwrite(color_seg, os.path.join(ParentDir,dirname,'colorSeg',BaseName))
 
         if not (show or out_file):
             warnings.warn('show==False and out_file is not specified, only '
                           'result image will be returned')
-            return img
+            return img1

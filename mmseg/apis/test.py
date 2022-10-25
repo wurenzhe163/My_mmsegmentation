@@ -39,7 +39,10 @@ def single_gpu_test(model,
                     opacity=0.5,
                     pre_eval=False,
                     format_only=False,
-                    format_args={}):
+                    format_args={},
+                    RGBChannel=[0,1,2],
+                    imgbackend='None',
+                    dirname='test',annpath=None):
     """Test with single GPU by progressive mode.
 
     Args:
@@ -91,30 +94,51 @@ def single_gpu_test(model,
             result = model(return_loss=False, **data)
 
         if show or out_dir:
-            img_tensor = data['img'][0]
+            # 修改，筛选RGBChannel
+            img_tensor = data['img'][0][:,RGBChannel,:,:]
             img_metas = data['img_metas'][0].data[0]
+
+            img_metas[0]['img_norm_cfg']['mean'] = img_metas[0]['img_norm_cfg']['mean'][RGBChannel]
+            img_metas[0]['img_norm_cfg']['std'] = img_metas[0]['img_norm_cfg']['std'][RGBChannel]
             imgs = tensor2imgs(img_tensor, **img_metas[0]['img_norm_cfg'])
+
             assert len(imgs) == len(img_metas)
 
+            # ---------------------这里进行了大幅度修改----------------------- #
             for img, img_meta in zip(imgs, img_metas):
-                h, w, _ = img_meta['img_shape']
-                img_show = img[:h, :w, :]
+                h, w, c = img_meta['img_shape']
+                if c <= 3:
+                    img_show = img[:h, :w, :]
+                else:
+                    img_show = img[:h, :w, RGBChannel]
 
+                # 重采样缩放的图片至原始图像大小
                 ori_h, ori_w = img_meta['ori_shape'][:-1]
                 img_show = mmcv.imresize(img_show, (ori_w, ori_h))
-
+                # -----------------修改以进行真实标签绘制 -----------#
+                import os
+                ann = os.path.join(annpath,img_meta['ori_filename'])
+                #------------------------------------------------#
                 if out_dir:
                     out_file = osp.join(out_dir, img_meta['ori_filename'])
                 else:
                     out_file = None
 
+                # ----------- 添加用于绘图真实标签 --------#
+
+
+
                 model.module.show_result(
                     img_show,
                     result,
+                    ann,
                     palette=dataset.PALETTE,
                     show=show,
                     out_file=out_file,
-                    opacity=opacity)
+                    opacity=opacity,
+                backend=imgbackend,
+                MinMax_Norm=True,
+                dirname=dirname)
 
         if efficient_test:
             result = [np2tmp(_, tmpdir='.efficient_test') for _ in result]
