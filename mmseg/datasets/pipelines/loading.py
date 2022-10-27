@@ -105,12 +105,17 @@ class LoadAnnotations(object):
     def __init__(self,
                  reduce_zero_label=False,
                  file_client_args=dict(backend='disk'),
-                 imdecode_backend='pillow'):
+                 imdecode_backend='pillow',
+                 inputSeg=None,
+                 outputSeg=None):
         self.reduce_zero_label = reduce_zero_label
         self.file_client_args = file_client_args.copy()
         self.file_client = None
         self.imdecode_backend = imdecode_backend
-
+        self.inputSeg = inputSeg
+        self.outputSeg = outputSeg
+        if self.inputSeg:
+            assert len(self.inputSeg) == len(self.outputSeg)
     def __call__(self, results):
         """Call function to load multiple types annotations.
 
@@ -133,6 +138,11 @@ class LoadAnnotations(object):
         gt_semantic_seg = mmcv.imfrombytes(
             img_bytes, flag='unchanged',
             backend=self.imdecode_backend).squeeze().astype(np.uint8)
+        # -------------添加用于修正样本的值非0，1，2连续状态
+        if self.inputSeg and self.outputSeg:
+            for i,j in zip(self.inputSeg,self.outputSeg):
+                gt_semantic_seg[gt_semantic_seg==i] = j
+
         # modify if custom classes
         if results.get('label_map', None) is not None:
             # Add deep copy to solve bug of repeatedly
